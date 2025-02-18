@@ -2,7 +2,18 @@ from pathlib import Path
 import pandas as pd
 from ast import literal_eval
 
-class PortoDataProcessor:
+def run():
+    paranagua_processor = TransformateData("PORTO_DE_PARANAGUA", "./data/bronze/PORTO_DE_PARANAGUA")
+    paranagua_processor.process_files()
+
+    santos_processor = TransformateData("PORTO_DE_SANTOS", "./data/bronze/PORTO_DE_SANTOS")
+    santos_processor.process_files()
+    
+    total_processor = TransformateData("TOTAL", "")
+    total_processor.df_total = pd.concat([paranagua_processor.df_total, santos_processor.df_total], ignore_index=True)
+    total_processor.save_total_data()
+
+class TransformateData:
     def __init__(self, porto_name: str, base_path: str):
         self.porto_name = porto_name
         self.base_path = Path(base_path)
@@ -39,13 +50,15 @@ class PortoDataProcessor:
             columns = [
                 (table_name, 'Mercadoria'),
                 (table_name, 'Sentido'),
-                (table_name, 'Chegada' if table_name != 'ESPERADOS' else 'ETA')
+                (table_name, 'Chegada' if table_name != 'ESPERADOS' else 'ETA'),
+                (table_name, 'Previsto')
             ]
         else:  # PORTO_DE_SANTOS
             columns = [
                 (table_name, 'Mercadoria Goods'),
                 (table_name, 'Operaç Operat'),
-                (table_name, 'Cheg/Arrival d/m/y')
+                (table_name, 'Cheg/Arrival d/m/y'),
+                (table_name, 'Peso Weight')
             ]
 
         selected_columns = [col for col in columns if col in df.columns]
@@ -61,7 +74,7 @@ class PortoDataProcessor:
         df_grouped['Status'] = table_name
         df_grouped['Quantidade'] = 0
         df_grouped['Porto'] = porto
-        df_grouped.columns = ['Mercadoria', 'Sentido', 'Chegada', 'Status', 'Quantidade', 'Porto']
+        df_grouped.columns = ['Mercadoria', 'Sentido', 'Chegada', 'Peso', 'Status', 'Quantidade', 'Porto']
         return df_grouped
     
     def _save_grouped_data(self, df, porto_name):
@@ -73,17 +86,20 @@ class PortoDataProcessor:
         if "CHEGADA" in file_path:
             df_grouped = df.groupby(group_by_cols).agg({
                 'Sentido': lambda x: '; '.join(str(i) for i in x if pd.notna(i)),
+                'Peso': lambda x: '; '.join(str(i) for i in x if pd.notna(i)),
                 'Quantidade': 'size'
             }).reset_index()
         elif "SENTIDO" in file_path:
             df_grouped = df.groupby(group_by_cols).agg({
                 'Chegada': lambda x: '; '.join(str(i) for i in x if pd.notna(i)),
+                'Peso': lambda x: '; '.join(str(i) for i in x if pd.notna(i)),
                 'Quantidade': 'size'
             }).reset_index()
         else:
             df_grouped = df.groupby(group_by_cols).agg({
                 'Sentido': lambda x: '; '.join(str(i) for i in x if pd.notna(i)),
                 'Chegada': lambda x: '; '.join(str(i) for i in x if pd.notna(i)),
+                'Peso': lambda x: '; '.join(str(i) for i in x if pd.notna(i)),
                 'Quantidade': 'size'
             }).reset_index()
         
